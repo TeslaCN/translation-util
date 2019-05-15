@@ -51,84 +51,90 @@ public class BaiduTranslationToolImpl implements TranslationTool {
             driver.manage().timeouts().pageLoadTimeout(3, TimeUnit.SECONDS);
             driverThreadLocal.set(driver);
         }
-
-        TranslationResult translationResult = new TranslationResult();
-
         for (; ; ) {
             try {
-                driver.get(TARGET_URL);
-                break;
-            } catch (Exception e) {
-            }
-        }
-        for (; ; ) {
-            try {
-                driver.findElement(By.id("baidu_translate_input")).clear();
-                driver.findElement(By.id("baidu_translate_input")).sendKeys(query);
-                driver.findElement(By.id("translate-button")).click();
-                WebDriverWait wait = new WebDriverWait(driver, 1);
-                wait.until(ExpectedConditions.presenceOfElementLocated(By.className("target-output")));
-                translationResult.setTranslated(driver.findElement(By.className("target-output")).getText());
-                break;
-            } catch (Exception e) {
-            }
-        }
 
-        translationResult.setQuery(query);
+                TranslationResult translationResult = new TranslationResult();
 
-        translationResult.setSource(
-                driver.findElement(By.xpath(SOURCE_XPATH))
-                        .getText()
-                        .replace("检测到", ""));
-
-        translationResult.setTarget(
-                driver.findElement(
-                        By.xpath(TARGET_XPATH)).getText());
-
-        String imageUrl;
-        try {
-            imageUrl = driver.findElement(By.className("dictionary-baike-img")).getCssValue("background-image");
-            if (imageUrl != null && !imageUrl.isEmpty()) {
-                Matcher m = URL_PATTERN.matcher(imageUrl);
-                if (m.find()) {
-                    translationResult.setImageUrl(m.group(1));
+                for (; ; ) {
+                    try {
+                        driver.get(TARGET_URL);
+                        break;
+                    } catch (Exception e) {
+                    }
                 }
-            }
-        } catch (Exception e) {
-        }
+                for (; ; ) {
+                    try {
+                        driver.findElement(By.id("baidu_translate_input")).clear();
+                        driver.findElement(By.id("baidu_translate_input")).sendKeys(query);
+                        driver.findElement(By.id("translate-button")).click();
+                        WebDriverWait wait = new WebDriverWait(driver, 1);
+                        wait.until(ExpectedConditions.presenceOfElementLocated(By.className("target-output")));
+                        translationResult.setTranslated(driver.findElement(By.className("target-output")).getText());
+                        break;
+                    } catch (Exception e) {
+                    }
+                }
 
-        translationResult.setWordMeans(
-                driver.findElements(By.xpath("//*[@id=\"left-result-container\"]/div/div/div/div/div[2]/p"))
+                translationResult.setQuery(query);
+
+                translationResult.setSource(
+                        driver.findElement(By.xpath(SOURCE_XPATH))
+                                .getText()
+                                .replace("检测到", ""));
+
+                translationResult.setTarget(
+                        driver.findElement(
+                                By.xpath(TARGET_XPATH)).getText());
+
+                String imageUrl;
+                try {
+                    imageUrl = driver.findElement(By.className("dictionary-baike-img")).getCssValue("background-image");
+                    if (imageUrl != null && !imageUrl.isEmpty()) {
+                        Matcher m = URL_PATTERN.matcher(imageUrl);
+                        if (m.find()) {
+                            translationResult.setImageUrl(m.group(1));
+                        }
+                    }
+                } catch (Exception e) {
+                }
+
+                translationResult.setWordMeans(
+                        driver.findElements(By.xpath("//*[@id=\"left-result-container\"]/div/div/div/div/div[2]/p"))
+                                .stream()
+                                .map(WebElement::getText)
+                                .map(s -> {
+                                    WordMean m = new WordMean();
+                                    String[] splited = s.split("\n");
+                                    if (splited.length == 2) {
+                                        m.setPart(splited[0]);
+                                        m.setMeans(Arrays.asList(splited[1].split(";")));
+                                    } else if (splited.length == 1) {
+                                        m.setMeans(Arrays.asList(splited[0].split(";")));
+                                    }
+                                    return m;
+                                })
+                                .collect(Collectors.toList()));
+
+                translationResult.setPhonetics(driver.findElements(By.className("phonetic-transcription"))
                         .stream()
                         .map(WebElement::getText)
                         .map(s -> {
-                            WordMean m = new WordMean();
-                            String[] splited = s.split("\n");
-                            if (splited.length == 2) {
-                                m.setPart(splited[0]);
-                                m.setMeans(Arrays.asList(splited[1].split(";")));
-                            } else if (splited.length == 1) {
-                                m.setMeans(Arrays.asList(splited[0].split(";")));
+                            Phonetic phonetic = new Phonetic();
+                            Matcher m = PHONETIC_PATTERN.matcher(s);
+                            if (m.find()) {
+                                phonetic.setName(m.group(1));
+                                phonetic.setValue(m.group(2));
+                                return phonetic;
                             }
-                            return m;
+                            return null;
                         })
                         .collect(Collectors.toList()));
 
-        translationResult.setPhonetics(driver.findElements(By.className("phonetic-transcription"))
-                .stream()
-                .map(WebElement::getText)
-                .map(s -> {
-                    Phonetic phonetic = new Phonetic();
-                    Matcher m = PHONETIC_PATTERN.matcher(s);
-                    if (m.find()) {
-                        phonetic.setName(m.group(1));
-                        phonetic.setValue(m.group(2));
-                        return phonetic;
-                    }
-                    return null;
-                })
-                .collect(Collectors.toList()));
+                return translationResult;
+            } catch (Exception e) {
 
-        return translationResult;
+            }
+        }
     }
 }
